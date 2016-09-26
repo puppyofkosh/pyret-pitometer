@@ -1,4 +1,5 @@
-require(["pyret-base/js/runtime", "program", "cpo/cpo-builtin-modules"], function(runtimeLib, program, cpoBuiltinModules) {
+require = require("requirejs");
+require(["pyret-base/js/runtime", "program", "bench/bench-builtin-modules"], function(runtimeLib, program, benchBuiltinModules) {
 
   var staticModules = program.staticModules;
   var depMap = program.depMap;
@@ -8,7 +9,7 @@ require(["pyret-base/js/runtime", "program", "cpo/cpo-builtin-modules"], functio
 
   var realm = {};
 
-  cpoBuiltinModules.setStaticModules(program.staticModules);
+  benchBuiltinModules.setStaticModules(program.staticModules);
 
   var runtime = runtimeLib.makeRuntime({
     stdout: function(s) { console.log(s); },
@@ -159,7 +160,7 @@ require(["pyret-base/js/runtime", "program", "cpo/cpo-builtin-modules"], functio
       var world = gf(gf(realm["builtin://world"], "provide-plus-types"), "internal");
       reactors.setInteract(world.bigBangFromDict);
 
-      cpoBuiltinModules.setRealm(realm);
+      benchBuiltinModules.setRealm(realm);
     }
   };
   postLoadHooks[main] = function(answer) {
@@ -251,7 +252,6 @@ require(["pyret-base/js/runtime", "program", "cpo/cpo-builtin-modules"], functio
       console.error(result.exn.stack);
     }
 //    $("#loader").hide();
-    console.log(window.performance.now());
   }
 
   return runtime.runThunk(function() {

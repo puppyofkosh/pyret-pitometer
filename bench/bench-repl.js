@@ -2,19 +2,19 @@
   requires: [
     { "import-type": "dependency",
       protocol: "file",
-      args: ["../../../pyret/src/arr/compiler/compile-lib.arr"]
+      args: ["../pyret/src/arr/compiler/compile-lib.arr"]
     },
     { "import-type": "dependency",
       protocol: "file",
-      args: ["../../../pyret/src/arr/compiler/compile-structs.arr"]
+      args: ["../pyret/src/arr/compiler/compile-structs.arr"]
     },
     { "import-type": "dependency",
       protocol: "file",
-      args: ["../../../pyret/src/arr/compiler/repl.arr"]
+      args: ["../pyret/src/arr/compiler/repl.arr"]
     },
     { "import-type": "dependency",
       protocol: "file",
-      args: ["../arr/cpo.arr"]
+      args: ["./bench-helpers.arr"]
     },
     { "import-type": "builtin",
       name: "parse-pyret"
@@ -31,14 +31,18 @@
   ],
   nativeRequires: [
     "bench/bench-builtin-modules",
-    "pyret-base/js/runtime"
+    "pyret-base/js/runtime",
+    "q"
   ],
   provides: {},
   theModule: function(runtime, namespace, uri,
-                      compileLib, compileStructs, pyRepl, cpo,
+                      compileLib, compileStructs, pyRepl, benchHelpers,
                       parsePyret, runtimeLib, loadLib, builtinModules,
-                      benchModules,
-                      rtLib) {
+                      benchModules, rtLib, Q) {
+    var gf = runtime.getField;
+    var gmf = function(m, s) {
+      return gf(gf(m, "values"), s);
+    }
 
     function uriFromDependency(dependency) {
       return runtime.ffi.cases(gmf(compileStructs, "is-Dependency"), "Dependency", dependency,
@@ -83,7 +87,7 @@
                   throw runtime.throwMessageException("Unknown module: " + name);
                 }
                 else {
-                  return gmf(cpo, "make-builtin-js-locator").app(name, raw);
+                  return gmf(benchHelpers, "make-builtin-js-locator").app(name, raw);
                 }
               },
               dependency: function(protocol, args) {
@@ -122,16 +126,13 @@
     });
     var builtinsForPyret = runtime.ffi.makeList(builtins);
 
-    var getDefsForPyret = runtime.makeFunction(function() {
-        return CPO.editor.cm.getValue();
-      });
     var replGlobals = gmf(compileStructs, "standard-globals");
 
     var defaultOptions = gmf(compileStructs, "default-compile-options");
 
     var replP = Q.defer();
     return runtime.safeCall(function() {
-        return gmf(cpo, "make-repl").app(
+        return gmf(benchHelpers, "make-repl").app(
             builtinsForPyret,
             pyRuntime,
             pyRealm,
@@ -139,15 +140,18 @@
       }, function(repl) {
         var jsRepl = {
           runtime: runtime.getField(pyRuntime, "runtime").val,
-          restartInteractions: function(ignoredStr, typeCheck) {
-            var options = defaultOptions.extendWith({"type-check": typeCheck, "on-compile": onCompile});
+          restartInteractions: function(programStr, typeCheck) {
+            var programThunk = runtime.makeFunction(function() {
+              return programStr;
+            });
+            var options = defaultOptions.extendWith({"type-check": typeCheck});
             var ret = Q.defer();
             setTimeout(function() {
               runtime.runThunk(function() {
                 return runtime.safeCall(
                   function() {
                     return gf(repl,
-                    "make-definitions-locator").app(getDefsForPyret, replGlobals);
+                    "make-definitions-locator").app(programThunk, replGlobals);
                   },
                   function(locator) {
                     return gf(repl, "restart-interactions").app(locator, options);

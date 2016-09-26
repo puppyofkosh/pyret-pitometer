@@ -1,0 +1,15 @@
+{
+  "baseUrl": "./",
+  "optimize": "none",
+  "paths": {
+      "bench": "./bench",
+      "pyret-base": "./pyret/build/phaseA/",
+      "jglr": "./pyret/lib/jglr",
+      "q": "node_modules/q/q",
+      "fs": "empty:",
+      "path": "empty:",
+      "s-expression": "empty:",
+      "requirejs": "empty:",
+      "seedrandom": "empty:"
+    }
+}
