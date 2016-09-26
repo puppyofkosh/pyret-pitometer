@@ -1,0 +1,24 @@
+{
+  "name": "pitometer",
+  "version": "0.0.0",
+  "description": "Measuring the performance of Pyret",
+  "main": "index.js",
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brownplt/pitometer.git"
+  },
+  "keywords": [
+    "performance",
+    "compiler",
+    "pyret"
+  ],
+  "author": "Joe Gibbs Politz",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/brownplt/pitometer/issues"
+  },
+  "homepage": "https://github.com/brownplt/pitometer#readme"
+}
