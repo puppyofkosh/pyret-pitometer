@@ -148,18 +148,8 @@ require(["pyret-base/js/runtime", "program", "bench/bench-builtin-modules"], fun
       var currentChecker = runtime.getField(checker, "make-check-context").app(runtime.makeString(main), true);
       runtime.setParam("current-checker", currentChecker);
     },
-    "builtin://reactors": function(reactor) {
-      var r = runtime.getField(runtime.getField(reactor, "provide-plus-types"), "values");
-      runtime.setParam("makeReactor", runtime.getField(r, "make-reactor").app);
-    },
-    "builtin://cpo-builtins": function(_) {
+    "builtin://base": function(_) {
       // NOTE(joe): At this point, all the builtin modules are for sure loaded
-      // (like image, world, etc)
-      
-      var reactors = gf(gf(realm["builtin://reactors"], "provide-plus-types"), "internal");
-      var world = gf(gf(realm["builtin://world"], "provide-plus-types"), "internal");
-      reactors.setInteract(world.bigBangFromDict);
-
       benchBuiltinModules.setRealm(realm);
     }
   };

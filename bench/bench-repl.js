@@ -130,6 +130,133 @@
 
     var defaultOptions = gmf(compileStructs, "default-compile-options");
 
+
+    function parse(source, uri) {
+      var parse = gmf(parsePyret, "surface-parse");
+      return parse.app(source, uri);
+    }
+
+    function compile(ast) {
+      var compileAst = gmf(benchHelpers, "compile-ast");
+      return compileAst.app(ast, pyRuntime, makeFindModule(), gmf(compileStructs, "default-compile-options"));
+    }
+
+    function run(jsSrc) {
+      var run = gmf(benchHelpers, "run");
+      return run.app(pyRuntime, pyRealm, jsSrc);
+    }
+
+    function toReprOrDie(value, resolve, reject) {
+      runtime.runThunk(
+        () => runtime.toRepr(value),
+        (renderResult) => {
+          if(runtime.isSuccessResult(renderResult)) {
+            resolve(renderResult.result);
+          }
+          else {
+            console.error("Could not render: ", value, " because ", renderResult);
+            reject("An error occurred while rendering a value, details logged to console");
+          }
+        });
+    }
+    var phased = {
+      /*
+        @param {string} src - some Pyret code
+        @param {string} url - a unique name to store in source locations
+
+        @returns A promise that resolves either to an AST or rejects with a
+                 (stringified) parse error
+                 (TODO: return richer values for parse error return)
+      */
+      parse(src, url) {
+        // TODO(joe): pass in a URL to uniquely identify this program
+        if(!url) { url = "definitions://"; }
+        return new Promise((resolve, reject) => {
+          runtime.runThunk(
+            () => parse(src, url),
+            (parseResult) => {
+              if(runtime.isSuccessResult(parseResult)) {
+                resolve(parseResult);
+              }
+              else {
+                // NOTE(joe): intentionally passing reject twice; want to report an error either way
+                reject(parseResult);
+              }
+            });
+        });
+      },
+      /*
+        @param {AST} ast - A Pyret AST from parse
+
+        @returns A promise that resolves with some "bytecode"—a JS string—or rejects
+                 with a string describing any error(s).
+                 (TODO: return richer values for error returns)
+      */
+      compile(ast) {
+        var get = runtime.getField;
+        return new Promise((resolve, reject) => {
+          runtime.runThunk(
+            () => compile(ast),
+            (compileResult) => {
+              // NOTE(joe): success here just means the compiler didn't blow up; the result
+              // is a Pyret Either indicating compile errors or a final JS program to run
+              if(runtime.isSuccessResult(compileResult)) {
+                var maybeJS = compileResult.result;
+                if(runtime.ffi.isLeft(maybeJS)) {
+                  reject(compileResult);
+                }
+                else {
+                  resolve(compileResult);
+                }
+              }
+              else {
+                // NOTE(joe): intentionally passing reject twice; want to report an error either way
+                reject(compileResult);
+              }
+            });
+        });
+      },
+      /*
+        @param {string} bytecode - JS code to evaluate
+
+        @returns A promise that resolves with an answer data structure, or rejects
+                 with a string describing any error(s).
+                 (TODO: return richer values for error returns)
+      */
+      execute(bytecode) {
+        var get = runtime.getField;
+        return new Promise((resolve, reject) => {
+          runtime.runThunk(
+            () => run(bytecode),
+            (runResult) => {
+              // NOTE(joe): success here means the run succeeded, and will report
+              // both passing and failing tests, along with a final value
+
+              // Just doing a barebones dive to retrieve and return the toRepr of
+              // the final value for now, but there are lots of juicy things on
+              // this result, and it's something we should build out an API for.
+              if(runtime.isSuccessResult(runResult)) {
+                var innerResult = runResult.result.val.result;
+                if(runtime.isSuccessResult(innerResult)) {
+                  resolve(runResult);
+                }
+                else {
+                  reject(innerResult);
+                }
+              }
+              else {
+                reject(runResult);
+              }
+            });
+        });
+      },
+      stop() {
+        // NOTE(joe): This will cause the current parse, compile, OR execute to
+        // reject() with a "user break" message.
+        runtime.breakAll();
+      }
+    };
+
     var replP = Q.defer();
     return runtime.safeCall(function() {
         return gmf(benchHelpers, "make-repl").app(
@@ -191,7 +318,10 @@
           },
           runtime: runtime
         };
-        return runtime.makeJSModuleReturn(jsRepl);
+        return runtime.makeJSModuleReturn({
+          repl: jsRepl,
+          phased: phased
+        });
       }, "make-repl");
 
   }
