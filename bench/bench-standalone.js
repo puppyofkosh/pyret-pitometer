@@ -1,5 +1,5 @@
-require = require("requirejs");
-require(["pyret-base/js/runtime", "program", "bench/bench-builtin-modules"], function(runtimeLib, program, benchBuiltinModules) {
+var r = require("requirejs");
+r(["pyret-base/js/runtime", "program", "bench/bench-builtin-modules"], function(runtimeLib, program, benchBuiltinModules) {
 
   var staticModules = program.staticModules;
   var depMap = program.depMap;
