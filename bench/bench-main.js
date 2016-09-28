@@ -5,9 +5,18 @@
       "args": ["bench-repl"]
     }
   ],
-  nativeRequires: ["q", "command-line-args", "mathjs"],
+  nativeRequires: ["q", "command-line-args", "mathjs", "fs"],
   provides: {},
-  theModule: function(runtime, _, uri, benchRepl, Q, commandLineArgs, math) {
+  theModule: function(runtime, _, uri, benchRepl, Q, commandLineArgs, math, fs) {
+
+    const optionDefinitions = [
+      { name: 'commit', alias: 'c', type: String },
+      { name: 'outfile', alias: 'o', type: String },
+      { name: 'include', alias: 'i', multiple: true, type: String, defaultValue: [""] },
+      { name: 'exclude', alias: 'e', multiple: true, type: String, defaultValue: [] }
+    ]
+    const options = commandLineArgs(optionDefinitions)
+    var commit = options.commit;
 
     function timePhases(name, src) {
       var parseResultP = benchRepl.phased.parse(src, name);
@@ -19,32 +28,49 @@
       });
 
       var allP = Q.all([parseResultP, compileResultP, runResultP]);
-      return allP.then(function(results) {
-        return {
-          src: src,
-          name: name,
-          stats: {
-            parse: results[0].stats,
-            compile: results[1].stats,
-            run: results[2].stats,
-          }
-        };
-      });
+//      var failP = allP.fail();
+      var doneP = 
+        allP.then(function(results) {
+          console.log("Done running " + name, results[0].stats.time, results[1].stats.time, results[2].stats.time);
+          return {
+            src: src,
+            name: name,
+            stats: {
+              parse: results[0].stats,
+              compile: results[1].stats,
+              run: results[2].stats,
+            }
+          };
+        }, 
+        function(err) {
+          throw {
+            name: name,
+            err: err
+          };
+        });
+      return doneP;
     }
 
     function pmap(fs) {
-      if (fs.length === 0) { return Q.fcall(function() { return []; }); }
-      else {
-        var f = fs.pop();
-        var p = f();
-        var rest = p.then(function(_) {
-          return pmap(fs);
-        });
-        return Q.all([p, rest]).then(function(res) {
-          return [res[0]].concat(res[1]);
-        });
+      function loop(prev, processing, soFar) {
+        if(processing.length === 0) {
+          console.log(soFar);
+          return soFar;
+        }
+        else {
+          var first = processing[0];
+          if(prev === null) {
+            var next = first();
+          }
+          else {
+            var next = prev.then(first, first);
+          }
+          return loop(next, processing.slice(1), soFar.concat([next]));
+        }
       }
+      return loop(null, fs, []);
     }
+
 
     function runNTimes(f, n) {
       var fs = [];
@@ -54,30 +80,48 @@
       return pmap(fs);
     }
 
-    var programs = [
-      { name: "x",
-        src: "x = 5"
-      },
-      { name: "loop",
-        src: "for each(x from range(0, 1000)): x end"
-      }
-    ];
-      
+    var progBase = "bench/programs";
+    var programNames = fs.readdirSync(progBase);
+    var arrFiles = programNames.filter(function(p) {
+      return (p.indexOf(".arr") === p.length - 4)
+    });
+    var onlyIncluded = arrFiles.filter(function(p) {
+      var found = false;
+      options.include.forEach(function(i) {
+        found = found || (p.indexOf(i) !== -1);
+      });
+      return found;
+    });
+    var onlyExcluded = onlyIncluded.filter(function(p) {
+      var found = true;
+      options.exclude.forEach(function(e) {
+        found = found && (p.indexOf(e) === -1);
+      });
+      return found;
+    });
+    var toRun = onlyExcluded;
+    var programs = toRun.map(function(p) {
+      return {
+        name: p,
+        src: String(fs.readFileSync(progBase + "/" + p))
+      };
+    });
 
     return runtime.pauseStack(function(restarter) {
-      var programsP = pmap(programs.map(function(p) {
+      var programPs = pmap(programs.map(function(p) {
         return function() {
-          return runNTimes(function() {
+          return Q.all(runNTimes(function() {
             return timePhases(p.name, p.src);
-          }, 5);
+          }, 5)).then(function(r) {
+            return r; 
+          });
         };
       }));
-      
-      var done = programsP.then(function(programs) {
-        programs.forEach(function(p) {
-          console.log(p);
 
-          var beginning = [p[0].name];
+      programPs.forEach(function(program) {
+        var printP = program.then(function(p) {
+
+          var beginning = [commit, p[0].name];
 
           function pick(l, keys) {
             return l.map(function(elt) {
@@ -145,13 +189,13 @@
           ];
 
           lines.forEach(function(l) {
-            console.log(l.join(","));
+            fs.appendFileSync(options.outfile, l.join(","))
+            fs.appendFileSync(options.outfile, "\n");
           });
         });
-      });
-
-      done.fail(function(err) {
-        console.log("Failed: ", err);
+        printP.fail(function(err) {
+          console.error("Error: ", err);
+        });
       });
     });
   }
