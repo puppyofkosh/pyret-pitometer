@@ -124,7 +124,7 @@ fun compile-ast(ast, runtime, finder, options) -> E.Either:
 end
 
 fun run(runtime, realm, js-source):
-  L.run-program(runtime, realm, js-source)
+  L.run-program(runtime, realm, js-source, CS.default-compile-options)
 end
 
 fun make-repl(builtin-mods, runtime, realm, finder):

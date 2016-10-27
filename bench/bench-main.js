@@ -21,9 +21,11 @@
     function timePhases(name, src) {
       var parseResultP = benchRepl.phased.parse(src, name);
       var compileResultP = parseResultP.then(function(success) {
+        global.gc();
         return benchRepl.phased.compile(success.result);
       });
       var runResultP = compileResultP.then(function(success) {
+        global.gc();
         return benchRepl.phased.execute(runtime.getField(success.result, "v"));
       });
 
@@ -99,7 +101,27 @@
       });
       return found;
     });
-    var toRun = onlyExcluded;
+    // http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
+    function shuffle(array) {
+      var counter = array.length;
+
+      // While there are elements in the array
+      while (counter > 0) {
+        // Pick a random index
+        let index = Math.floor(Math.random() * counter);
+
+        // Decrease counter by 1
+        counter--;
+
+        // And swap the last element with it
+        let temp = array[counter];
+        array[counter] = array[index];
+        array[index] = temp;
+      }
+
+      return array;
+    }
+    var toRun = shuffle(onlyExcluded);
     var programs = toRun.map(function(p) {
       return {
         name: p,
@@ -107,12 +129,14 @@
       };
     });
 
+    var RUNS = 10;
+
     return runtime.pauseStack(function(restarter) {
       var programPs = pmap(programs.map(function(p) {
         return function() {
           return Q.all(runNTimes(function() {
             return timePhases(p.name, p.src);
-          }, 5)).then(function(r) {
+          }, RUNS)).then(function(r) {
             return r; 
           });
         };
@@ -142,59 +166,41 @@
 
           var lines = [
             beginning.concat([
-              "parse-first",
               getTime(p, "parse")[0],
-              0
-            ]),
-            beginning.concat([
-              "parse-mean-rest",
+              0,
+              0,
               math.mean(getTime(p.slice(1), "parse")),
-              math.std(getTime(p.slice(1), "parse"))
-            ]),
-            beginning.concat([
-              "parse-mean-all",
+              math.std(getTime(p.slice(1), "parse")),
+              math.std(getTime(p.slice(1), "parse")) / Math.sqrt(RUNS - 1),
               math.mean(getTime(p, "parse")),
-              math.std(getTime(p, "parse"))
-            ]),
-            beginning.concat([
-              "compile",
+              math.std(getTime(p, "parse")),
+              math.std(getTime(p, "parse")) / Math.sqrt(RUNS),
               getTime(p, "compile")[0],
-              0
-            ]),
-            beginning.concat([
-              "compile-mean-rest",
+              0,
               math.mean(getTime(p.slice(1), "compile")),
-              math.std(getTime(p.slice(1), "compile"))
-            ]),
-            beginning.concat([
-              "compile-mean-all",
+              math.std(getTime(p.slice(1), "compile")),
+              math.std(getTime(p.slice(1), "compile")) / Math.sqrt(RUNS - 1),
               math.mean(getTime(p, "compile")),
-              math.std(getTime(p, "compile"))
-            ]),
-            beginning.concat([
-              "run",
+              math.std(getTime(p, "compile")),
+              math.std(getTime(p, "compile")) / Math.sqrt(RUNS),
               getTime(p, "run")[0],
-              0
-            ]),
-            beginning.concat([
-              "run-mean-rest",
+              0,
               math.mean(getTime(p.slice(1), "run")),
-              math.std(getTime(p.slice(1), "run"))
-            ]),
-            beginning.concat([
-              "run-mean-all",
+              math.std(getTime(p.slice(1), "run")),
+              math.std(getTime(p.slice(1), "run")) / Math.sqrt(RUNS - 1),
               math.mean(getTime(p, "run")),
-              math.std(getTime(p, "run"))
+              math.std(getTime(p, "run")),
+              math.std(getTime(p, "run")) / Math.sqrt(RUNS)
             ])
           ];
 
           lines.forEach(function(l) {
-            fs.appendFileSync(options.outfile, l.join(","))
+            fs.appendFileSync(options.outfile, l.join("\t"))
             fs.appendFileSync(options.outfile, "\n");
           });
         });
         printP.fail(function(err) {
-          console.error("Error: ", err);
+          console.error("Error: ", err, err.err.exn);
         });
       });
     });

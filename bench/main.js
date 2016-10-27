@@ -32,7 +32,7 @@ require(["./checkout-pyret", "child_process", "fs", "command-line-args"], functi
   var link = "unlink pyret; ln -s " + workDir + " pyret";
   var stealWork = "cp pyret/build/phaseB/compiled/*.js " + compiledDir;
   var build = 
-  "node pyret/build/phaseB/pyret.jarr \
+  "node --expose-gc pyret/build/phaseB/pyret.jarr \
     -allow-builtin-overrides \
     --builtin-js-dir bench/ \
     --builtin-js-dir pyret/src/js/trove/ \
@@ -48,7 +48,7 @@ require(["./checkout-pyret", "child_process", "fs", "command-line-args"], functi
   var exclude = options.exclude ?
     " --exclude " + options.exclude.join(" ") : "";
   var run =
-  "node " + outfileJarr + include + exclude +
+  "node --expose-gc " + outfileJarr + include + exclude +
     " --outfile " + options.outfile +
     " --commit " + options.commit;
 
@@ -56,6 +56,8 @@ require(["./checkout-pyret", "child_process", "fs", "command-line-args"], functi
   childProcess.execSync(link);
   childProcess.execSync(stealWork);
   childProcess.execSync(build);
+  console.log("Running: \n");
+  console.log(run);
   childProcess.execSync(run, {stdio: [0, 1, 2]});
 
 });
