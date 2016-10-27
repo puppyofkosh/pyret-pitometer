@@ -18,7 +18,50 @@
     const options = commandLineArgs(optionDefinitions)
     var commit = options.commit;
 
-    function timePhases(name, src) {
+    function timePhases(prog) {
+      if (prog.extension == 'js') {
+        return timePhasesJs(prog.name, prog.src);
+      } else if (prog.extension == 'arr') {
+        return timePhasesArr(prog.name, prog.src);
+      } else {
+        throw new Error("invalid extension: " + prog.extension);
+      }
+    }
+
+    function timePhasesJs(name, src) {
+      global.gc();
+      var runResultP = benchRepl.phased.execute(src);
+
+      return runResultP.then(
+        function(result) {
+          if (runtime.isFailureResult(result)) {
+            console.error("Error running program", result);
+            throw {
+              name: name,
+              err: result
+            };
+          }
+          console.log("Done running " + name, result.stats.time);
+          var zeroStats = {"bounces":0,"tos":0,"time":[0, 0]};
+          return {
+            src: src,
+            name: name,
+            stats: {
+              parse: zeroStats,
+              compile: zeroStats,
+              run: result.stats,
+            }
+          };
+        },
+        function(err) {
+          throw {
+            name: name,
+            err: err
+          };
+        });
+    }
+
+    function timePhasesArr(name, src) {
       var parseResultP = benchRepl.phased.parse(src, name);
       var compileResultP = parseResultP.then(function(success) {
         global.gc();
@@ -84,10 +127,10 @@
 
     var progBase = "bench/programs";
     var programNames = fs.readdirSync(progBase);
-    var arrFiles = programNames.filter(function(p) {
-      return (p.indexOf(".arr") === p.length - 4)
+    var programFiles = programNames.filter(function(p) {
+      return p.endsWith(".arr") || p.endsWith(".js");
     });
-    var onlyIncluded = arrFiles.filter(function(p) {
+    var onlyIncluded = programFiles.filter(function(p) {
       var found = false;
       options.include.forEach(function(i) {
         found = found || (p.indexOf(i) !== -1);
@@ -123,9 +166,14 @@
     }
     var toRun = shuffle(onlyExcluded);
     var programs = toRun.map(function(p) {
+      var extension = 'js';
+      if (p.endsWith('.arr')) {
+        extension = 'arr';
+      }
       return {
         name: p,
-        src: String(fs.readFileSync(progBase + "/" + p))
+        src: String(fs.readFileSync(progBase + "/" + p)),
+        extension: extension
       };
     });
 
@@ -135,7 +183,7 @@
       var programPs = pmap(programs.map(function(p) {
         return function() {
           return Q.all(runNTimes(function() {
-            return timePhases(p.name, p.src);
+            return timePhases(p);
           }, RUNS)).then(function(r) {
             return r; 
           });
