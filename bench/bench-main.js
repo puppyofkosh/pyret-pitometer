@@ -42,6 +42,7 @@
             };
           }
           console.log("Done running " + name, result.stats.time);
+          console.log("Done running " + name, result.stats);
           var zeroStats = {"bounces":0,"tos":0,"time":[0, 0]};
           return {
             src: src,
@@ -212,6 +213,13 @@
             });
           }
 
+          function getField(lst, phase, field) {
+            var stats = pick(lst, ["stats", phase]);
+            return stats.map(function(data) {
+              return data[field];
+            });
+          }
+
           var lines = [
             beginning.concat([
               getTime(p, "parse")[0],
@@ -238,7 +246,9 @@
               math.std(getTime(p.slice(1), "run")) / Math.sqrt(RUNS - 1),
               math.mean(getTime(p, "run")),
               math.std(getTime(p, "run")),
-              math.std(getTime(p, "run")) / Math.sqrt(RUNS)
+              math.std(getTime(p, "run")) / Math.sqrt(RUNS),
+              math.mean(getField(p, "run", "tos")),
+              math.mean(getField(p, "run", "bounces"))
             ])
           ];
 
