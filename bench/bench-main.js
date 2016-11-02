@@ -213,10 +213,10 @@
             });
           }
 
-          function getField(lst, phase, field) {
+          function getStat(lst, phase, stat) {
             var stats = pick(lst, ["stats", phase]);
             return stats.map(function(data) {
-              return data[field];
+              return data[stat];
             });
           }
 
@@ -247,8 +247,8 @@
               math.mean(getTime(p, "run")),
               math.std(getTime(p, "run")),
               math.std(getTime(p, "run")) / Math.sqrt(RUNS),
-              math.mean(getField(p, "run", "tos")),
-              math.mean(getField(p, "run", "bounces"))
+              math.mean(getStat(p, "run", "tos")),
+              math.mean(getStat(p, "run", "bounces"))
             ])
           ];
 
